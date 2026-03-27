@@ -29,6 +29,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       id: user.id,
       name,
       username,
+      email: user.email || "",
       avatar_url,
     });
 
