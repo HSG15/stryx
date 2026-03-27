@@ -34,14 +34,24 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     });
 
     if (insertError) {
-      if (insertError.code === "23505") setError("Username is already taken.");
-      else setError("Failed to create profile. Please try again.");
+      console.error("Supabase Insert Error Object:", insertError);
+      if (insertError.code === "23505") {
+         if (insertError.message.includes("users_pkey")) {
+            // Profile actually exists!
+            setError("Profile already exists! Trying to load...");
+            await refreshProfile();
+         } else {
+            setError("Username is already taken.");
+         }
+      } else {
+        setError(`Failed to create: ${insertError.message} (${insertError.code})`);
+      }
       setIsSaving(false);
     } else {
       try {
         await refreshProfile();
       } catch (err) {
-        console.error(err);
+        console.error("Refresh Error:", err);
       } finally {
         setIsSaving(false);
       }
