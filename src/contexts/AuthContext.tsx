@@ -3,13 +3,13 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { UserProfile } from "@/lib/types";
-import { User } from "@supabase/supabase-js";
+import { User, Session, AuthChangeEvent, AuthError } from "@supabase/supabase-js";
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   isLoading: boolean;
-  signInWithEmail: (email: string) => Promise<{ error: any }>;
+  signInWithEmail: (email: string) => Promise<{ error: AuthError | Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -22,32 +22,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [supabase] = useState(() => createClient());
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = React.useCallback(async (userId: string) => {
     try {
-      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
-      if (error && error.code !== "PGRST116") {
-        console.error("Supabase Profile Error:", error);
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Profile fetch error:", error);
+        setProfile(null);
+        return;
       }
-      if (data) setProfile(data as UserProfile);
-      else setProfile(null);
+
+      setProfile(data ?? null);
     } catch (err) {
-      console.error("Unexpected profile fetch error:", err);
+      console.error("Unexpected profile error:", err);
       setProfile(null);
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     let mounted = true;
 
     const initSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) console.error("Session fetch error:", error);
-        
-        if (mounted) setUser(session?.user ?? null);
-        if (session?.user && mounted) await fetchProfile(session.user.id);
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error("Session error:", error);
+        }
+
+        if (!mounted) return;
+
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        }
       } catch (err) {
-        console.error("Initialization crash:", err);
+        console.error("Init crash:", err);
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -55,30 +73,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
+    // 🔥 Fallback: never stay stuck
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        console.warn("Auth timeout fallback triggered");
+        setIsLoading(false);
+      }
+    }, 3000);
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
       if (!mounted) return;
+
       try {
         setUser(session?.user ?? null);
-        if (session?.user) await fetchProfile(session.user.id);
-        else setProfile(null);
+
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        } else {
+          setProfile(null);
+        }
       } catch (err) {
-        console.error("Auth state change error:", err);
+        console.error("Auth change error:", err);
       } finally {
-        setTimeout(() => { if (mounted) setIsLoading(false) }, 100);
+        setIsLoading(false);
       }
     });
 
     return () => {
       mounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile, supabase.auth]);
 
   const signInWithEmail = async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}` },
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
     });
+
     return { error };
   };
 
@@ -91,7 +128,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, isLoading, signInWithEmail, signOut, refreshProfile }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        isLoading,
+        signInWithEmail,
+        signOut,
+        refreshProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -99,6 +145,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
   return context;
 }
