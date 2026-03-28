@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { UserProfile } from "@/lib/types";
 import { User, Session, AuthChangeEvent, AuthError } from "@supabase/supabase-js";
@@ -9,6 +9,7 @@ interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   isLoading: boolean;
+  authError: string | null;
   signInWithEmail: (email: string) => Promise<{ error: AuthError | Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -20,7 +21,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [supabase] = useState(() => createClient());
+  const hasInitialized = useRef(false);
 
   const fetchProfile = React.useCallback(async (userId: string) => {
     try {
@@ -47,7 +50,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     const initializeAuth = async () => {
+      // Clean URL logic: run once on mount
+      if (typeof window !== "undefined" && !hasInitialized.current) {
+        hasInitialized.current = true;
+        
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const searchParams = new URLSearchParams(window.location.search);
+        
+        const errDesc = searchParams.get('error_description') || hashParams.get('error_description');
+        const errCode = searchParams.get('error_code') || hashParams.get('error_code');
+        const hasToken = hashParams.get('access_token') || hashParams.get('type') === 'magiclink';
+
+        if (errDesc || errCode) {
+          if (errDesc?.includes('expired') || errCode?.includes('expired')) {
+            setAuthError("Session expired. Please request a new login link.");
+          } else {
+            setAuthError(errDesc || "Authentication error. Please try again.");
+          }
+        }
+
+        // Clean the URL safely removing hash and query params
+        if (errDesc || errCode || hasToken) {
+           window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+
       try {
+        // Fetch session safely
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -85,15 +114,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const currentUser = session?.user ?? null;
-        setUser(currentUser);
+        
+        // Prevent unnecessary state updates if user is same
+        setUser((prev) => (prev?.id === currentUser?.id ? prev : currentUser));
 
         if (event === "SIGNED_IN" && currentUser) {
-          setIsLoading(true); // Wait for profile before rendering app
+          setIsLoading(true);
           await fetchProfile(currentUser.id);
           setIsLoading(false);
+          // Optional: clear authError when successfully signed in
+          setAuthError(null);
         } else if (event === "SIGNED_OUT") {
           setProfile(null);
           setUser(null);
+        } else if (event === "TOKEN_REFRESHED") {
+          // Just update the user if needed, no need to refetch profile
         }
       } catch (err) {
         console.error("Auth change error:", err);
@@ -131,6 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         profile,
         isLoading,
+        authError,
         signInWithEmail,
         signOut,
         refreshProfile,

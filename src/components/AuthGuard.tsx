@@ -7,7 +7,7 @@ import { Sparkles, ArrowRight, Mail } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, profile, isLoading, signInWithEmail, refreshProfile } = useAuth();
+  const { user, profile, isLoading, authError, signInWithEmail, refreshProfile } = useAuth();
 
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
@@ -24,6 +24,29 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="size-12 rounded-full border-4 border-muted-foreground/20 border-t-foreground animate-spin" />
+      </div>
+    );
+  }
+
+  // ⚠️ AUTHENTICATION ERROR SCREEN
+  if (authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <motion.div className="w-full max-w-[360px] flex flex-col items-center text-center animate-in fade-in duration-500">
+          <div className="size-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <h2 className="text-xl font-bold mb-2">Authentication Error</h2>
+          <p className="text-sm text-muted-foreground mb-8">
+            {authError}
+          </p>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="w-full bg-foreground text-background rounded-xl py-3 font-semibold"
+          >
+            Return to Login
+          </button>
+        </motion.div>
       </div>
     );
   }
@@ -98,18 +121,18 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // 👤 CREATE PROFILE
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || isSaving) return;
 
     setIsSaving(true);
     setError("");
 
     const supabase = createClient();
 
-    const { error } = await supabase.from("users").insert({
+    const { error } = await supabase.from("users").upsert({
       id: user.id,
       name,
       username,
-    });
+    }, { onConflict: 'id' });
 
     if (error) {
       if (error.code === "23505") {
