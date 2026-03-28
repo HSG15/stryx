@@ -46,64 +46,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const initSession = async () => {
+    const initializeAuth = async () => {
       try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
-
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
         if (error) {
           console.error("Session error:", error);
         }
 
         if (!mounted) return;
 
-        setUser(session?.user ?? null);
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
 
-        if (session?.user) {
-          await fetchProfile(session.user.id);
+        if (currentUser) {
+          await fetchProfile(currentUser.id);
+        } else {
+          setProfile(null);
         }
       } catch (err) {
-        console.error("Init crash:", err);
+        console.error("Auth init crash:", err);
+        if (mounted) {
+          setUser(null);
+          setProfile(null);
+        }
       } finally {
         if (mounted) setIsLoading(false);
       }
     };
 
-    initSession();
-
-    // 🔥 Fallback: never stay stuck
-    const timeout = setTimeout(() => {
-      if (mounted) {
-        console.warn("Auth timeout fallback triggered");
-        setIsLoading(false);
-      }
-    }, 3000);
+    initializeAuth();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
+      if (event === "INITIAL_SESSION") return; // Let initialization handler cover this
       if (!mounted) return;
 
       try {
-        setUser(session?.user ?? null);
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
 
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
+        if (event === "SIGNED_IN" && currentUser) {
+          setIsLoading(true); // Wait for profile before rendering app
+          await fetchProfile(currentUser.id);
+          setIsLoading(false);
+        } else if (event === "SIGNED_OUT") {
           setProfile(null);
+          setUser(null);
         }
       } catch (err) {
         console.error("Auth change error:", err);
-      } finally {
-        setIsLoading(false);
       }
     });
 
     return () => {
       mounted = false;
-      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, [fetchProfile, supabase.auth]);

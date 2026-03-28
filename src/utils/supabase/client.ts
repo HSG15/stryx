@@ -23,6 +23,8 @@ export function createClient() {
         {
           auth: {
             storageKey: 'habit-tracker-auth-v3',
+            persistSession: true,
+            autoRefreshToken: true,
           }
         }
       );
