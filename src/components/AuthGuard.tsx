@@ -132,6 +132,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       id: user.id,
       name,
       username,
+      email: user.email,
     }, { onConflict: 'id' });
 
     if (error) {

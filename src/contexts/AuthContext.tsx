@@ -25,12 +25,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [supabase] = useState(() => createClient());
   const hasInitialized = useRef(false);
 
-  const fetchProfile = React.useCallback(async (userId: string) => {
+  const fetchProfile = React.useCallback(async (userObj: User) => {
     try {
+      if (!userObj.email) {
+        // Fallback to ID if no email
+        const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", userObj.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Profile fetch error:", error);
+          setProfile(null);
+          return;
+        }
+        setProfile(data ?? null);
+        return;
+      }
+
+      // Find by either ID or Email to ensure we catch existing accounts
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .eq("id", userId)
+        .or(`id.eq.${userObj.id},email.eq.${userObj.email}`)
+        .limit(1)
         .maybeSingle();
 
       if (error) {
@@ -89,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentUser);
 
         if (currentUser) {
-          await fetchProfile(currentUser.id);
+          await fetchProfile(currentUser);
         } else {
           setProfile(null);
         }
@@ -120,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (event === "SIGNED_IN" && currentUser) {
           setIsLoading(true);
-          await fetchProfile(currentUser.id);
+          await fetchProfile(currentUser);
           setIsLoading(false);
           // Optional: clear authError when successfully signed in
           setAuthError(null);
@@ -157,7 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user.id);
+    if (user) await fetchProfile(user);
   };
 
   return (
