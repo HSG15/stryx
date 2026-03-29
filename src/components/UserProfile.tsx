@@ -17,9 +17,9 @@ export function UserProfile() {
   const [showLogout, setShowLogout] = useState(false);
 
   // Edit state
-  const [name, setName] = useState(profile?.name || "");
-  const [username, setUsername] = useState(profile?.username || "");
-  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
+  const [name, setName] = useState(typeof profile === 'object' && profile ? profile.name : "");
+  const [username, setUsername] = useState(typeof profile === 'object' && profile ? profile.username : "");
+  const [avatarUrl, setAvatarUrl] = useState(typeof profile === 'object' && profile ? profile.avatar_url : "");
   const [isSaving, setIsSaving] = useState(false);
 
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -68,7 +68,7 @@ export function UserProfile() {
       const supabase = createClient();
       
       // Add an artificial timeout to prevent infinite spinning if the network drops
-      const timeoutPromise = new Promise<{ error: any }>((_, reject) => 
+      const timeoutPromise = new Promise<{ error: unknown }>((_, reject) => 
         setTimeout(() => reject(new Error("Request timed out")), 8000)
       );
       
@@ -81,16 +81,17 @@ export function UserProfile() {
       const { error } = await Promise.race([updatePromise, timeoutPromise]);
 
       if (error) {
-        if (error.code === '23505') toast("Username is already taken.", "error");
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') toast("Username is already taken.", "error");
         else toast("Failed to update profile. Try again.", "error");
       } else {
         await refreshProfile();
         toast("Profile updated successfully ✅", "success");
         setIsOpen(false);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      toast(e.message === "Request timed out" ? "Network timeout. Try again." : "A network error occurred.", "error");
+      const isTimeout = e instanceof Error && e.message === "Request timed out";
+      toast(isTimeout ? "Network timeout. Try again." : "A network error occurred.", "error");
     } finally {
       setIsSaving(false);
     }

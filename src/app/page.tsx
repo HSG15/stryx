@@ -14,14 +14,34 @@ import { useHabits } from "@/hooks/useHabits";
 import { Habit } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/contexts/ToastContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { AuthScreen } from "@/components/AuthScreen";
+import { CompleteProfile } from "@/components/CompleteProfile";
 
 export default function Dashboard() {
+  const { user, profile, isLoading } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "today">("grid");
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const { addHabit, updateHabit, deleteHabit, isLoaded } = useHabits();
   const { toast } = useToast();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="size-12 rounded-full border-4 border-muted-foreground/20 border-t-foreground animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen />;
+  }
+
+  if (profile === false) {
+    return <CompleteProfile />;
+  }
 
   if (!isLoaded) {
     return (
