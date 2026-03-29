@@ -136,7 +136,7 @@ export function HabitGrid({ selectedMonth, onAddHabitClick, onEditHabitClick }: 
                             className={cn(
                               "size-10 rounded-xl border-2 transition-all duration-300 flex items-center justify-center overflow-hidden relative",
                               future && "opacity-20 cursor-not-allowed border-border/20",
-                              isPast && "opacity-30 dark:opacity-25 grayscale cursor-not-allowed border-border/20",
+                              isPast && "opacity-50 dark:opacity-40 cursor-not-allowed border-border/20",
                               !future && !isPast && "cursor-pointer group-hover:border-foreground/20",
                               completed 
                                 ? cn(

@@ -109,14 +109,11 @@ export function UserProfile() {
           onClick={() => setIsOpen(!isOpen)}
           className={cn("flex items-center gap-3 cursor-pointer p-1.5 rounded-full hover:bg-muted/50 transition-colors", isOpen && "bg-muted")}
         >
-          <div className="flex flex-col items-end hidden sm:flex">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold leading-none">{profile.name}</span>
-              <span className={cn("text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase tracking-wider", getBadgeColor(current.name))}>
-                {current.name}
-              </span>
-            </div>
-            <span className="text-xs text-muted-foreground mr-1">@{profile.username}</span>
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="text-sm font-bold leading-none">{profile.name}</span>
+            <span className={cn("text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase tracking-wider", getBadgeColor(current.name))}>
+              {current.name}
+            </span>
           </div>
           <img src={profile.avatar_url} alt="Avatar" className="size-10 rounded-full bg-muted border-2 border-white/20 dark:border-white/10 shadow-sm" />
         </div>
@@ -141,11 +138,9 @@ export function UserProfile() {
               {/* Avatar Uploader / Editor */}
               <div className={cn("flex flex-col items-center gap-2", isSaving && "opacity-50 pointer-events-none")}>
                 <div className="relative group cursor-pointer" onClick={generateNewAvatar}>
-                  <img src={avatarUrl} alt="Avatar" className="size-20 rounded-full bg-muted border-4 border-background shadow-md transition-opacity group-hover:opacity-75" />
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="bg-black/50 text-white rounded-full p-2 backdrop-blur-sm">
-                      <RefreshCw size={16} />
-                    </div>
+                  <img src={avatarUrl} alt="Avatar" className="size-20 rounded-full bg-muted border-4 border-background shadow-md transition-opacity group-hover:opacity-90" />
+                  <div className="absolute bottom-0 right-0 bg-indigo-500 text-white rounded-full p-1.5 shadow-sm border-2 border-background z-10 transition-transform group-hover:scale-110">
+                    <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
                   </div>
                 </div>
                 <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Tap to randomize</span>
