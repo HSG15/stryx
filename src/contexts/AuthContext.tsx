@@ -23,6 +23,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [supabase] = useState(() => createClient());
   const initialized = useRef(false);
+  const currentUserRef = useRef<User | null>(null);
+
+  useEffect(() => {
+    currentUserRef.current = user;
+  }, [user]);
 
   const fetchProfile = React.useCallback(async (userObj: User) => {
     try {
@@ -103,17 +108,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       if (!mounted) return;
 
-      // Only respond to SIGNED_IN and SIGNED_OUT
       if (event === "SIGNED_IN" && session?.user) {
-        // Reset initialization and trigger fresh load
-        initialized.current = false;
-        setIsLoading(true);
-        await initializeAuth();
+        const isNewUser = currentUserRef.current?.id !== session.user.id;
+        
+        if (isNewUser) {
+          setIsLoading(true);
+          setUser(session.user);
+          await fetchProfile(session.user);
+          setIsLoading(false);
+        } else {
+          // Token refresh or cross-tab sync for the same user
+          setUser(session.user);
+        }
       } else if (event === "SIGNED_OUT") {
         setUser(null);
         setProfile(false);
         initialized.current = false;
         setIsLoading(false);
+      } else if ((event === "TOKEN_REFRESHED" || event === "USER_UPDATED") && session?.user) {
+        setUser(session.user);
       }
     });
 
@@ -121,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [initializeAuth, supabase.auth]);
+  }, [initializeAuth, supabase.auth, fetchProfile]);
 
   const signInWithEmail = async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({ email });
