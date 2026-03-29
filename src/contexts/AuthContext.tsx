@@ -27,38 +27,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = React.useCallback(async (userObj: User) => {
     try {
-      if (!userObj.email) {
-        // Fallback to ID if no email
-        const { data, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("id", userObj.id)
-          .maybeSingle();
+      let profileData: UserProfile | null = null;
 
-        if (error) {
-          console.error("Profile fetch error:", error);
-          setProfile(null);
-          return;
-        }
-        setProfile(data ?? null);
-        return;
-      }
-
-      // Find by either ID or Email to ensure we catch existing accounts
-      const { data, error } = await supabase
+      // Try identity by auth UID first (most secure, intended match)
+      const { data: byId, error: byIdError } = await supabase
         .from("users")
         .select("*")
-        .or(`id.eq.${userObj.id},email.eq.${userObj.email}`)
-        .limit(1)
+        .eq("id", userObj.id)
         .maybeSingle();
 
-      if (error) {
-        console.error("Profile fetch error:", error);
-        setProfile(null);
-        return;
+      if (byIdError) {
+        console.error("Profile fetch by ID error:", byIdError);
+      } else if (byId) {
+        profileData = byId;
       }
 
-      setProfile(data ?? null);
+      // If no profile by ID, fall back to email-based lookup (case-insensitive)
+      if (!profileData && userObj.email) {
+        const normalizedEmail = userObj.email.trim().toLowerCase();
+        const { data: byEmail, error: byEmailError } = await supabase
+          .from("users")
+          .select("*")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
+
+        if (byEmailError) {
+          console.error("Profile fetch by email error:", byEmailError);
+        } else if (byEmail) {
+          profileData = byEmail;
+        }
+      }
+
+      setProfile(profileData);
     } catch (err) {
       console.error("Unexpected profile error:", err);
       setProfile(null);
@@ -140,17 +140,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === "SIGNED_IN" && currentUser) {
           setIsLoading(true);
           await fetchProfile(currentUser);
-          setIsLoading(false);
-          // Optional: clear authError when successfully signed in
-          setAuthError(null);
+          setAuthError(null); // clear auth error after successful signin
         } else if (event === "SIGNED_OUT") {
           setProfile(null);
           setUser(null);
-        } else if (event === "TOKEN_REFRESHED") {
-          // Just update the user if needed, no need to refetch profile
+        } else if (event === "TOKEN_REFRESHED" && currentUser) {
+          // Keep the existing profile as-is unless you want to force refresh
         }
       } catch (err) {
         console.error("Auth change error:", err);
+      } finally {
+        if (mounted) setIsLoading(false);
       }
     });
 

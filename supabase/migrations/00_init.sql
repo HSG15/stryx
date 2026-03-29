@@ -36,14 +36,15 @@ ALTER TABLE habits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE habit_logs ENABLE ROW LEVEL SECURITY;
 
 -- 2A. Users table policies
+-- Allow a returning user with matching email to be recognized, even if a new auth UID is used
 CREATE POLICY "Users can view their own profile." ON users FOR SELECT
-  USING (auth.uid() = id);
+  USING (auth.uid() = id OR auth.email() = email);
 
 CREATE POLICY "Users can insert their own profile." ON users FOR INSERT
   WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Users can update their own profile." ON users FOR UPDATE
-  USING (auth.uid() = id);
+  USING (auth.uid() = id OR auth.email() = email);
 
 -- Allow public read access to users table for aggregated motivation stats (safe since we don't expose private info freely, but let's be strict just in case)
 -- Actually, the prompt states: "Smart Social Motivation (anonymous, aggregated motivation)". 

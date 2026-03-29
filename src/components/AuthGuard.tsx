@@ -128,12 +128,44 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const supabase = createClient();
 
+    // Check for existing profile by email first (this ensures returning users don't see onboarding again)
+    if (user.email) {
+      const normalizedEmail = user.email.trim().toLowerCase();
+      const { data: existingUser, error: existingError } = await supabase
+        .from("users")
+        .select("*")
+        .ilike("email", normalizedEmail)
+        .maybeSingle();
+
+      if (existingError) {
+        console.error("Profile existence check error:", existingError);
+        setError("Something went wrong. Please try again.");
+        setIsSaving(false);
+        return;
+      }
+
+      if (existingUser) {
+        if (existingUser.id === user.id) {
+          // Already expected row; just refresh profile and proceed.
+          await refreshProfile();
+          setIsSaving(false);
+          return;
+        }
+
+        // Profile already exists for this email under a different user record.
+        // Keep the existing entry (email-based uniqueness model).
+        await refreshProfile();
+        setIsSaving(false);
+        return;
+      }
+    }
+
     const { error } = await supabase.from("users").upsert({
       id: user.id,
       name,
       username,
       email: user.email,
-    }, { onConflict: 'id' });
+    }, { onConflict: ["id"] });
 
     if (error) {
       if (error.code === "23505") {
