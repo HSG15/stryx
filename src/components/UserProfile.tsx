@@ -63,15 +63,15 @@ export function UserProfile() {
   const handleSaveProfile = async () => {
     if (!name.trim() || !username.trim()) return;
     setIsSaving(true);
-    
+
     try {
       const supabase = createClient();
-      
+
       // Add an artificial timeout to prevent infinite spinning if the network drops
-      const timeoutPromise = new Promise<{ error: unknown }>((_, reject) => 
+      const timeoutPromise = new Promise<{ error: unknown }>((_, reject) =>
         setTimeout(() => reject(new Error("Request timed out")), 8000)
       );
-      
+
       const updatePromise = supabase.from('users').update({
         name: name.trim(),
         username: username.toLowerCase().replace(/[^a-z0-9_]/g, ''),

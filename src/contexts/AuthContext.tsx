@@ -22,7 +22,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null | false>(null); // null = loading/unknown, false = confirmed no profile
   const [isLoading, setIsLoading] = useState(true);
   const [supabase] = useState(() => createClient());
-  const initialized = useRef(false);
   const currentUserRef = useRef<User | null>(null);
 
   useEffect(() => {
@@ -70,9 +69,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const initializeAuth = React.useCallback(async () => {
-    if (initialized.current) return;
-    initialized.current = true;
-
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
 
@@ -123,7 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (event === "SIGNED_OUT") {
         setUser(null);
         setProfile(false);
-        initialized.current = false;
         setIsLoading(false);
       } else if ((event === "TOKEN_REFRESHED" || event === "USER_UPDATED") && session?.user) {
         setUser(session.user);
